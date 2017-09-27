@@ -22,6 +22,78 @@ bool apriori::is_contained(std::vector<unsigned int>::iterator c, std::vector<un
 	return (i1 == k1);
 }
 
+//
+
+int apriori::lower_bound(std::vector< unsigned int >& f_k, std::vector<unsigned int> temp, unsigned int& k, unsigned int idx, int st, int ed){
+	int m;
+	while(st<ed){
+		m = st + (ed-st)/2;
+		if(f_k[st*k+idx] == temp[idx]){
+			return st;
+		}
+		else if(f_k[m*k+idx] < temp[idx]){
+			st = m + 1;
+		}
+		else{
+			ed = m;
+		}
+	}
+	if(f_k[st*k+idx] == temp[idx]){
+		return st;
+	}
+	return -1;
+}
+
+int apriori::upper_bound(std::vector< unsigned int >& f_k, std::vector<unsigned int> temp, unsigned int& k, unsigned int idx, int st, int ed){
+	int m;
+	while(st<ed){
+		m = st + (ed-st+1)/2;
+		if(f_k[ed*k+idx] == temp[idx]){
+			return ed;
+		}
+		else if(f_k[m*k+idx] > temp[idx]){
+			ed = m - 1;
+		}
+		else{
+			st = m;
+		}
+	}
+	if(f_k[ed*k+idx] == temp[idx]){
+		return ed;
+	}
+	return -1;
+}
+
+bool apriori::is_found(std::vector< unsigned int >& f_k, std::vector<unsigned int> temp, unsigned int& k, int st, int ed){
+	int l = st;
+	int u = ed - 1;
+	for(int idx = 0; idx < k ; ++idx){
+		int t1 = lower_bound(f_k, temp, k, idx, l, u);
+		int t2 = upper_bound(f_k, temp, k, idx, l, u);
+		if(t1 == -1 || t2 == -1){
+			return false;
+		}
+		l = t1; u = t2;
+	}
+	return true;
+}
+
+bool apriori::check_subsets(std::vector< unsigned int >& f_k, std::vector<unsigned int> temp, unsigned int& k, unsigned int aux){
+	if(is_found(f_k, temp, k, 0, f_k.size()/k)){
+		for(int i = ((int)k-3) ; i >= 0 ; --i){
+			int t = aux;
+			aux = temp[i];
+			temp[i] = t;
+			if(!is_found(f_k, temp, k, 0, f_k.size()/k)){
+				return false;
+			}
+		}
+		return true;
+	}
+	return false;
+}
+//
+
 std::vector< unsigned int > apriori::generate_candidate(std::vector< unsigned int >& f_k, unsigned int& k){
 	// assert(f_k.size()%k == 0);
 	std::vector< unsigned int > ret;
@@ -36,11 +108,28 @@ std::vector< unsigned int > apriori::generate_candidate(std::vector< unsigned in
 			}
 			if(same_k_1){
 				// assert(*(f1+(k-1)) < *(f2+(k-1)));
-				for (unsigned int i = 0; i < (k-1); ++i){
-					ret.push_back(*(f1+i));
+				if(k > 1){
+					std::vector<unsigned int> temp(k);
+					for (unsigned int i = 0; i < (k-2); ++i){
+						temp[i] = (*(f1+i));
+					}
+					temp[k-2] = (*(f1+(k-1)));
+					temp[k-1] = (*(f2+(k-1)));
+					if(check_subsets(f_k, temp, k, *(f1+(k-2)))){
+						for (unsigned int i = 0; i < (k-1); ++i){
+							ret.push_back(*(f1+i));
+						}
+						ret.push_back(*(f1+(k-1)));
+						ret.push_back(*(f2+(k-1)));
+					}
 				}
-				ret.push_back(*(f1+(k-1)));
-				ret.push_back(*(f2+(k-1)));
+				else{
+					for (unsigned int i = 0; i < (k-1); ++i){
+						ret.push_back(*(f1+i));
+					}
+					ret.push_back(*(f1+(k-1)));
+					ret.push_back(*(f2+(k-1)));
+				}
 			}
 			else{
 				break;
@@ -52,10 +141,12 @@ std::vector< unsigned int > apriori::generate_candidate(std::vector< unsigned in
 
 void apriori::filter_candidate(std::vector< unsigned int >& f_k, std::vector<unsigned int>& c_k, std::vector<unsigned int>& items_count, unsigned int k){
 	#ifdef PARALLEL_MODE
-		omp_lock_t writelock[c_k.size()];
-		for(int i = 0;i<c_k.size();++i){
-			omp_init_lock(&writelock[i]);
-		}
+		// omp_lock_t writelock[c_k.size()];
+		// for(int i = 0;i<c_k.size();++i){
+		// 	omp_init_lock(&writelock[i]);
+		// }
+		omp_lock_t writelock;
+		omp_init_lock(&writelock);
 	#endif
 	#pragma omp parallel for
 	for(unsigned int i = 0; i < T.size(); ++i){
@@ -63,19 +154,22 @@ void apriori::filter_candidate(std::vector< unsigned int >& f_k, std::vector<uns
 			if(is_contained(c, T[i], k)){
 				unsigned int temp = (c - c_k.begin())/k;
 				#ifdef PARALLEL_MODE
-				omp_set_lock(&writelock[temp]);
+					// omp_set_lock(&writelock[temp]);
+					omp_set_lock(&writelock);
 				#endif
 				++items_count[temp];
 				#ifdef PARALLEL_MODE
-				omp_unset_lock(&writelock[temp]);
+					// omp_unset_lock(&writelock[temp]);
+					omp_unset_lock(&writelock);
 				#endif
 			}
 		}
 	}
 	#ifdef PARALLEL_MODE
-	for(int i = 0;i<c_k.size();++i){
-		omp_destroy_lock(&writelock[i]);
-	}
+		// for(int i = 0;i<c_k.size();++i){
+		// 	omp_destroy_lock(&writelock[i]);
+		// }
+		omp_destroy_lock(&writelock);
 	#endif
 	for(auto it = items_count.begin(); it != items_count.end(); ++it){
 		if(((float)*it)/count >= X){
