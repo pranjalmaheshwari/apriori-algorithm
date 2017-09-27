@@ -25,6 +25,10 @@ class apriori
 	// func
 	void first_pass(std::vector< unsigned int >& f_k);
 	bool is_contained(std::vector<unsigned int>::iterator c, std::vector<unsigned int>& v, unsigned int& k1);
+	int lower_bound(std::vector< unsigned int >& f_k, std::vector<unsigned int> temp, unsigned int& k, unsigned int idx, int st, int ed);
+	int upper_bound(std::vector< unsigned int >& f_k, std::vector<unsigned int> temp, unsigned int& k, unsigned int idx, int st, int ed);
+	bool is_found(std::vector< unsigned int >& f_k, std::vector<unsigned int> temp, unsigned int& k, int st, int ed);
+	bool check_subsets(std::vector< unsigned int >& f_k, std::vector<unsigned int> temp, unsigned int& k, unsigned int aux);
 	std::vector< unsigned int > generate_candidate(std::vector< unsigned int >& f_k, unsigned int& k);
 	void filter_candidate(std::vector< unsigned int >& f_k, std::vector<unsigned int>& c_k, std::vector<unsigned int>& items_count, unsigned int k);
 public:
